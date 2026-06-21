@@ -1,12 +1,19 @@
 const express=require('express')
 const cors=require('cors')
 const app = express()
+const jwt=require('jsonwebtoken')
+const cookieParser=require('cookie-parser')
+
 const port=process.env.PORT||3000
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 
 //middleware
-app.use(cors())
+app.use(cors({
+  origin:['http://localhost:5173'],
+  credentials:true
+}));
+
 app.use(express.json())
 
 
@@ -65,7 +72,12 @@ async function run() {
      //  const result=await jobCollection.find(query).toArray();
     //  res.send(result)
    //  })
-
+app.get('/applications/job/:job_id',async(req,res)=>{
+  const job_id=req.params.job_id;
+  const query={jobId:job_id}
+  const result=await applicationCollection.find(query).toArray()
+  res.send(result)
+})
 
  //applicationUser
  app.get('/applications',async(req,res)=>{
@@ -90,8 +102,33 @@ async function run() {
   const result=await applicationCollection.insertOne(application)
   res.send(result)
  })
-
+ //jwt token related api
+ app.post('/jwt',async(req,res)=>{
+  const userData=req.body;
+  const token=jwt.sign(userData,process.env.JWT_ACCESS_SECRET,{expiresIn:'1d'})
  
+ //set the token in the cookies
+ res.cookie('token',token,{
+  httpOnly:true,
+  secure:false
+ })
+  res.send({success:true})
+
+})
+
+
+
+ app.patch('/applications/:id',async(req,res)=>{
+  const id=req.params.id;
+  const filter={_id:new ObjectId(id)}
+  const updateDoc={
+    $set:{
+      status:req.body.status
+    }
+  }
+  const result=await applicationCollection.updateOne(filter,updateDoc)
+  res.send(result)
+ })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
