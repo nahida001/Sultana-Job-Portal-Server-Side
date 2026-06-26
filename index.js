@@ -15,6 +15,49 @@ app.use(cors({
 }));
 
 app.use(express.json())
+app.use(cookieParser())
+var admin = require("firebase-admin");
+
+var serviceAccount = require("./firebase_admin_key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
+const logger=(req,res,next)=>{
+  console.log('inside the logger middleWare')
+  next()
+}
+
+const verifyToken=(req,res,next)=>{
+  const token=req?.cookies?.token
+console.log('cookie in the middleware',token);
+if(!token){
+  return res.status(401).send({message:'unauthorized access'})
+}
+//verify token
+jwt.verify(token,process.env.JWT_ACCESS_SECRET,(err,decoded)=>{
+if(err){
+  return res.status(401).send({message:'unauthorized access'})
+}
+//console.log(decoded);
+req.decoded=decoded
+next()
+})
+}
+const verifyfirebaseToken=async(req,res,next)=>{
+  const authheader=req.headers.authorization
+  const token=authheader.split(' ')[1]
+  if(!token){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+  const userinfo=await admin.auth().verifyIdToken(token)
+ // console.log('fb token',token);
+ req.tokenEmail=userinfo.email;
+ next()
+
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.qxvdmah.mongodb.net/?appName=Cluster0`;
@@ -80,8 +123,14 @@ app.get('/applications/job/:job_id',async(req,res)=>{
 })
 
  //applicationUser
- app.get('/applications',async(req,res)=>{
+ app.get('/applications',logger,verifyToken,verifyfirebaseToken,async(req,res)=>{
   const email=req.query.email;
+  if(req.tokenEmail!=email){
+    return res.status(403).send({message :'forbidden access'})
+  }
+  if(email !== req.decoded.email){
+     return res.status(403).send({message:'forbidden access'})
+  }
   const query ={
      applicant:email
   }
